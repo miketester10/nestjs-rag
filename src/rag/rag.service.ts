@@ -5,7 +5,6 @@ import {
   Logger,
   OnModuleInit,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
 import { FaissStore } from '@langchain/community/vectorstores/faiss';
 import { OllamaEmbeddings } from '@langchain/ollama';
@@ -23,6 +22,7 @@ import {
   NO_CONTEXT_RESPONSE,
   formatContextForPrompt,
 } from './prompts/rag-prompt';
+import { env } from 'src/config/env.schema';
 
 @Injectable()
 export class RagService implements OnModuleInit {
@@ -34,24 +34,19 @@ export class RagService implements OnModuleInit {
   private storePath = path.join(this.dataDir, 'faiss_store');
   private similarityThreshold: number;
 
-  constructor(
-    private configService: ConfigService,
-    private llmService: LlmService,
-  ) {}
+  constructor(private llmService: LlmService) {}
 
   async onModuleInit() {
     // Configura embeddings Ollama
-    const ollamaBaseUrl = this.configService.get<string>('OLLAMA_BASE_URL');
-    const embeddingModel = this.configService.get<string>('EMBEDDING_MODEL');
+    const ollamaBaseUrl = env.OLLAMA_BASE_URL;
+    const embeddingModel = env.EMBEDDING_MODEL;
 
     this.embeddings = new OllamaEmbeddings({
       baseUrl: ollamaBaseUrl,
       model: embeddingModel,
     });
 
-    this.similarityThreshold = parseFloat(
-      this.configService.get<string>('SIMILARITY_THRESHOLD') || '0.45',
-    );
+    this.similarityThreshold = env.SIMILARITY_THRESHOLD;
 
     this.logger.log(
       `Embeddings configurato: ${embeddingModel} @ ${ollamaBaseUrl}`,
@@ -140,23 +135,19 @@ export class RagService implements OnModuleInit {
     // Crea i chunk
     const chunkedDocuments = await splitter.createDocuments(texts, metadatas);
 
-    // Crea o aggiorna vector store
-    if (this.vectorStore) {
-      await this.vectorStore.addDocuments(chunkedDocuments);
-    } else {
-      try {
+    // Aggiorna o crea vector store
+    try {
+      if (this.vectorStore) {
+        await this.vectorStore.addDocuments(chunkedDocuments);
+      } else {
         this.vectorStore = await FaissStore.fromDocuments(
           chunkedDocuments,
           this.embeddings,
         );
-      } catch (err) {
-        this.logger.error(
-          `Errore durante la creazione del Vector store: ${(err as Error).message}`,
-        );
-        throw new InternalServerErrorException(
-          `Errore durante la creazione del Vector store. Verifica che Ollama sia in esecuzione.`,
-        );
       }
+    } catch (err) {
+      this.logger.error(`Errore Vector store: ${(err as Error).message}`);
+      throw new InternalServerErrorException(`Errore Vector store`);
     }
 
     // Salva su disco
@@ -175,7 +166,7 @@ export class RagService implements OnModuleInit {
   // -----------------------------
   private async retrieve(
     question: string,
-    limit: number = 8,
+    topK: number = 8,
   ): Promise<{ doc: Document; score: number }[]> {
     if (!this.vectorStore) {
       throw new BadRequestException(
@@ -186,23 +177,19 @@ export class RagService implements OnModuleInit {
     // Converti la domanda in embedding
     const queryEmbedding = await this.embeddings.embedQuery(question);
 
-    // Cerca nel vector store (recupera più risultati per filtrare meglio)
-    const results = await this.vectorStore.similaritySearchVectorWithScore(
+    // Cerca nel vector store (recupera più risultati per filtrare meglio). Ritorna un array di tuple [Document, distance]
+    const results = (await this.vectorStore.similaritySearchVectorWithScore(
       queryEmbedding,
-      limit,
-    );
+      topK,
+    )) as Array<[Document, number]>;
 
     // Calcola score di similarità del coseno e filtra
-    // Cosine Similarity = 1 - (Distance^2 / 2)
     return results
-      .map(([doc, distance]: [Document, number]) => {
-        let similarity = 1 - Math.pow(distance, 2) / 2;
-        // Clamp tra 0 e 1
-        similarity = Math.max(0, Math.min(1, similarity));
-        return { doc, score: similarity };
-      })
-      .filter(({ score }) => score >= this.similarityThreshold)
-      .slice(0, limit);
+      .map(([doc, distance]) => ({
+        doc,
+        score: 1 / (1 + distance), // più piccolo = più simile → score vicino a 1
+      }))
+      .filter(({ score }) => score >= this.similarityThreshold); // filtra i meno rilevanti
   }
 
   // -----------------------------
