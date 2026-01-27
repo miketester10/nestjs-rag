@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { GoogleGenAI } from '@google/genai';
-import { AI_CLIENT } from './llm.constants';
+import { LLM_CLIENT } from './llm.constants';
 import { env } from '../config/env.schema';
 
 @Injectable()
@@ -8,7 +8,7 @@ export class LlmService implements OnModuleInit {
   private readonly logger = new Logger(LlmService.name);
   private modelName: string;
 
-  constructor(@Inject(AI_CLIENT) private aiClient: GoogleGenAI) {}
+  constructor(@Inject(LLM_CLIENT) private llmClient: GoogleGenAI) {}
 
   onModuleInit() {
     this.modelName = env.LLM_MODEL;
@@ -17,7 +17,7 @@ export class LlmService implements OnModuleInit {
 
   async generateResponse(prompt: string): Promise<string> {
     try {
-      const response = await this.aiClient.models.generateContent({
+      const response = await this.llmClient.models.generateContent({
         model: this.modelName,
         contents: prompt,
       });

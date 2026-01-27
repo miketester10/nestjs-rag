@@ -1,1 +1,1 @@
-export const AI_CLIENT = 'AI_CLIENT';
+export const LLM_CLIENT = 'LLM_CLIENT';

@@ -3,10 +3,7 @@ import { config } from 'dotenv';
 config();
 
 const EnvSchema = z.object({
-  GOOGLE_AI_API_KEY: z
-    .string()
-    .trim()
-    .nonempty('GOOGLE_AI_API_KEY is required.'),
+  LLM_API_KEY: z.string().trim().nonempty('LLM_API_KEY is required.'),
   LLM_MODEL: z.string().trim().nonempty('LLM_MODEL is required.'),
   OLLAMA_BASE_URL: z.string().trim().nonempty('OLLAMA_BASE_URL is required.'),
   EMBEDDING_MODEL: z.string().trim().nonempty('EMBEDDING_MODEL is required.'),
