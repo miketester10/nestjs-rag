@@ -25,7 +25,7 @@ export class LlmService implements OnModuleInit {
       if (response.text) {
         return response.text;
       } else {
-        throw new Error('Ricevuta risposta vuota dal modello LLM');
+        return 'Nessuna risposta generata dal modello LLM. Riprova più tardi.';
       }
     } catch (error) {
       this.logger.error(
