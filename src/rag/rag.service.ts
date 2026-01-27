@@ -1,5 +1,4 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { Metadata } from 'src/interfaces/metadata.interface';
 import { QueryResponse } from 'src/interfaces/query-response.interface';
 import { IngestResponse } from 'src/interfaces/ingest-response.interface';
 import { GenerateResponse } from 'src/interfaces/generate-response.interface';
@@ -76,7 +75,7 @@ export class RagService implements OnModuleInit {
     const contextDocs = await this.documentRetrievalService.retrieve(question);
 
     const context = contextDocs.map(({ doc, score }) => {
-      const filename = (doc.metadata as Metadata).filename;
+      const filename = doc.metadata.filename;
       return {
         pdf: filename,
         score: Number(score.toFixed(4)),
@@ -105,7 +104,7 @@ export class RagService implements OnModuleInit {
 
     // Prepara citazioni
     const citazioni = filteredResults.map(({ doc, score }) => ({
-      filename: (doc.metadata as Metadata).filename,
+      filename: doc.metadata.filename,
       score: Number(score.toFixed(4)),
       snippet: doc.pageContent.substring(0, 150) + '...',
     }));
@@ -113,7 +112,7 @@ export class RagService implements OnModuleInit {
     // Formatta contesto per il prompt
     const contextDocs = filteredResults.map(({ doc, score }) => ({
       content: doc.pageContent,
-      filename: (doc.metadata as Metadata).filename,
+      filename: doc.metadata.filename,
       score: score,
     }));
 

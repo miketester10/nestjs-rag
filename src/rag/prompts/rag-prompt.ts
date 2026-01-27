@@ -3,6 +3,8 @@
  * Progettato per minimizzare le allucinazioni dell'LLM.
  */
 
+import { ContentDocs } from 'src/interfaces/content-docs.interface';
+
 export const RAG_SYSTEM_PROMPT = `Sei un assistente che risponde ESCLUSIVAMENTE basandosi sui documenti forniti.
 
 REGOLE FONDAMENTALI:
@@ -32,9 +34,7 @@ export const NO_CONTEXT_RESPONSE =
 /**
  * Formatta i documenti recuperati per il contesto del prompt
  */
-export function formatContextForPrompt(
-  documents: Array<{ content: string; filename: string; score: number }>,
-): string {
+export function formatContextForPrompt(documents: ContentDocs[]): string {
   if (documents.length === 0) {
     return 'Nessun documento rilevante trovato.';
   }

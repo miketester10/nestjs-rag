@@ -1,9 +1,11 @@
 export interface GenerateResponse {
   risposta: string;
-  citazioni: Array<{
-    filename: string;
-    score: number;
-    snippet: string;
-  }>;
+  citazioni: Citazione[];
   disclaimer: string;
+}
+
+interface Citazione {
+  filename: string;
+  score: number;
+  snippet: string;
 }

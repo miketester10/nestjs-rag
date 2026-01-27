@@ -1,7 +1,9 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { VectorStoreService } from './vector-store.service';
-import { Document } from 'langchain/document';
-import { RetrievedDocument } from 'src/interfaces/retrieved-document.interface';
+import {
+  RetrievedDocument,
+  RetrievedDocumentTuple,
+} from 'src/interfaces/retrieved-document.interface';
 
 @Injectable()
 export class DocumentRetrievalService {
@@ -42,7 +44,7 @@ export class DocumentRetrievalService {
     const results = (await vectorStore.similaritySearchVectorWithScore(
       queryEmbedding,
       topK,
-    )) as Array<[Document, number]>;
+    )) as RetrievedDocumentTuple[];
 
     // Converte la distanza in uno score di similarità compreso tra 0 e 1
     // usando una trasformazione inversa: score = 1 / (1 + distance).
