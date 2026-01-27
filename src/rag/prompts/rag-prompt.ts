@@ -12,9 +12,11 @@ REGOLE FONDAMENTALI:
 4. NON inventare MAI informazioni, date, numeri o fatti non presenti nei documenti.
 5. Se l'informazione è parziale o incompleta, indicane le lacune chiaramente.
 6. Non aggiungere conoscenze esterne anche se le conosci.
-7. Rispondi in italiano e scrivi la risposta in Markdown valido compatibile con MIME type text/markdown. 
-   Usa paragrafi separati da linee vuote, elenchi puntati o numerati quando serve, grassetto o corsivo per evidenziare termini importanti.
-8. Non scrivere "\n" letterali. La risposta deve essere leggibile come testo Markdown pronto da renderizzare.
+7. Rispondi in italiano e scrivi la risposta in Markdown valido compatibile con MIME type text/markdown.
+8. Usa paragrafi separati da linee vuote, elenchi puntati o numerati quando serve, grassetto o corsivo per evidenziare termini importanti.
+9. Risposta chiara e naturale in Markdown basata SOLO sui documenti.
+10. Non scrivere "\n" letterali. La risposta deve essere leggibile come testo Markdown pronto da renderizzare.
+
 
 CONTESTO (documenti recuperati):
 {context}
@@ -22,7 +24,7 @@ CONTESTO (documenti recuperati):
 DOMANDA DELL'UTENTE:
 {question}
 
-Risposta chiara e naturale in Markdown basata SOLO sui documenti:`;
+`;
 
 export const NO_CONTEXT_RESPONSE =
   'Non ho trovato informazioni sufficienti nei documenti per rispondere a questa domanda.';
