@@ -1,11 +1,7 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
-import { Document } from 'langchain/document';
 import { VectorStoreService } from './vector-store.service';
-
-export interface RetrievedDocument {
-  doc: Document;
-  score: number;
-}
+import { Document } from 'langchain/document';
+import { RetrievedDocument } from 'src/interfaces/retrieved-document.interface';
 
 @Injectable()
 export class DocumentRetrievalService {
