@@ -5,9 +5,10 @@ import {
   Logger,
   OnModuleInit,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
 import { FaissStore } from '@langchain/community/vectorstores/faiss';
-import { HuggingFaceTransformersEmbeddings } from '@langchain/community/embeddings/huggingface_transformers';
+import { OllamaEmbeddings } from '@langchain/ollama';
 import { Document } from 'langchain/document';
 import * as pdfParse from 'pdf-parse';
 import * as fs from 'fs';
@@ -15,37 +16,64 @@ import * as path from 'path';
 import { Metadata } from 'src/interfaces/metadata.interface';
 import { QueryResponse } from 'src/interfaces/query-response.interface';
 import { IngestResponse } from 'src/interfaces/ingest-response.interface';
+import { GenerateResponse } from 'src/interfaces/generate-response.interface';
+import { LlmService } from 'src/llm/llm.service';
+import {
+  RAG_SYSTEM_PROMPT,
+  NO_CONTEXT_RESPONSE,
+  formatContextForPrompt,
+} from './prompts/rag-prompt';
 
 @Injectable()
 export class RagService implements OnModuleInit {
   private readonly logger = new Logger(RagService.name);
 
   private vectorStore: FaissStore | null = null;
-  private embeddings: HuggingFaceTransformersEmbeddings;
+  private embeddings: OllamaEmbeddings;
   private dataDir = path.resolve('data');
   private storePath = path.join(this.dataDir, 'faiss_store');
+  private similarityThreshold: number;
 
-  constructor() {}
+  constructor(
+    private configService: ConfigService,
+    private llmService: LlmService,
+  ) {}
 
-  onModuleInit() {
-    // Usa il modello di embedding locale
-    const modelPath = path.resolve('models', 'BAAI', 'bge-m3');
-    this.embeddings = new HuggingFaceTransformersEmbeddings({
-      model: modelPath,
+  async onModuleInit() {
+    // Configura embeddings Ollama
+    const ollamaBaseUrl = this.configService.get<string>('OLLAMA_BASE_URL');
+    const embeddingModel = this.configService.get<string>('EMBEDDING_MODEL');
+
+    this.embeddings = new OllamaEmbeddings({
+      baseUrl: ollamaBaseUrl,
+      model: embeddingModel,
     });
 
-    // Creo la cartella 'data' se non esiste
+    this.similarityThreshold = parseFloat(
+      this.configService.get<string>('SIMILARITY_THRESHOLD') || '0.45',
+    );
+
+    this.logger.log(
+      `Embeddings configurato: ${embeddingModel} @ ${ollamaBaseUrl}`,
+    );
+    this.logger.log(`Threshold similarità: ${this.similarityThreshold}`);
+
+    // Crea la cartella 'data' se non esiste
     if (!fs.existsSync(this.dataDir)) {
       fs.mkdirSync(this.dataDir, { recursive: true });
     }
 
-    // Se esiste un FAISS già salvato, lo carico
+    // Carica vector store esistente se presente
     if (fs.existsSync(this.storePath)) {
-      this.loadVectorStore().catch((err) =>
-        this.logger.error(
-          `Errore nel caricamento del Vector store FAISS: ${(err as Error).message}`,
-        ),
-      );
+      try {
+        await this.loadVectorStore();
+      } catch (err) {
+        this.logger.warn(
+          `Vector store esistente non compatibile, verrà ricreato: ${(err as Error).message}`,
+        );
+        // Rimuovi il vecchio store incompatibile
+        fs.rmSync(this.storePath, { recursive: true, force: true });
+      }
     }
   }
 
@@ -69,10 +97,15 @@ export class RagService implements OnModuleInit {
           continue;
         }
 
+        // Metadata arricchiti per citazioni
         documents.push(
-          new Document({
+          new Document<Metadata>({
             pageContent: text,
-            metadata: { filename: file.originalname } as Metadata,
+            metadata: {
+              filename: file.originalname,
+              totalPages: data.numpages,
+              uploadedAt: new Date().toISOString(),
+            },
           }),
         );
       } catch (err) {
@@ -93,22 +126,24 @@ export class RagService implements OnModuleInit {
       };
     }
 
-    // Chunking intelligente
+    // Chunking ottimizzato per modelli con grande contesto (Gemini Flash)
     const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1400,
-      chunkOverlap: 200,
-      separators: ['\n\n', '. ', '? ', '! ', '\n'],
+      chunkSize: 4000,
+      chunkOverlap: 500,
+      separators: ['\n\n', '\n', '. ', '? ', '! ', ' '],
     });
+
+    // Crea array di testi e metadati separati da passare allo splitter
     const texts = documents.map((document) => document.pageContent);
     const metadatas = documents.map((document) => document.metadata);
+
+    // Crea i chunk
     const chunkedDocuments = await splitter.createDocuments(texts, metadatas);
 
-    // Se il Vector store esiste già
+    // Crea o aggiorna vector store
     if (this.vectorStore) {
-      // Aggiungo i chunked Documents a quelli già presenti nello store
       await this.vectorStore.addDocuments(chunkedDocuments);
     } else {
-      // Altrimenti creo lo store
       try {
         this.vectorStore = await FaissStore.fromDocuments(
           chunkedDocuments,
@@ -119,12 +154,12 @@ export class RagService implements OnModuleInit {
           `Errore durante la creazione del Vector store: ${(err as Error).message}`,
         );
         throw new InternalServerErrorException(
-          `Errore durante la creazione del Vector store`,
+          `Errore durante la creazione del Vector store. Verifica che Ollama sia in esecuzione.`,
         );
       }
     }
 
-    // Salvo su disco
+    // Salva su disco
     await this.saveVectorStore();
 
     return {
@@ -136,28 +171,48 @@ export class RagService implements OnModuleInit {
   }
 
   // -----------------------------
-  // Query ai documenti
+  // HELPER: Recupera documenti rilevanti con scoring
   // -----------------------------
-  async query(question: string): Promise<QueryResponse> {
+  private async retrieve(
+    question: string,
+    limit: number = 8,
+  ): Promise<{ doc: Document; score: number }[]> {
     if (!this.vectorStore) {
-      // Nessun documento indicizzato
       throw new BadRequestException(
         `⚠️ Nessun documento indicizzato. Carica prima dei PDF`,
       );
     }
 
-    // results: array di tuple [Document, score]
-    const results = await this.vectorStore.similaritySearchWithScore(
-      question,
-      4,
+    // Converti la domanda in embedding
+    const queryEmbedding = await this.embeddings.embedQuery(question);
+
+    // Cerca nel vector store (recupera più risultati per filtrare meglio)
+    const results = await this.vectorStore.similaritySearchVectorWithScore(
+      queryEmbedding,
+      limit,
     );
 
-    // Ordina lo score in modo descrescente
-    results.sort((a, b) => b[1] - a[1]);
+    // Calcola score di similarità del coseno e filtra
+    // Cosine Similarity = 1 - (Distance^2 / 2)
+    return results
+      .map(([doc, distance]: [Document, number]) => {
+        let similarity = 1 - Math.pow(distance, 2) / 2;
+        // Clamp tra 0 e 1
+        similarity = Math.max(0, Math.min(1, similarity));
+        return { doc, score: similarity };
+      })
+      .filter(({ score }) => score >= this.similarityThreshold)
+      .slice(0, limit);
+  }
 
-    // Costruisce il contesto da inviare al modello (o restituire all'utente)
-    const context = results.map(([doc, score]) => {
-      const filename = (doc.metadata as Metadata).filename || 'Sconosciuto';
+  // -----------------------------
+  // Query ai documenti (solo retrieval)
+  // -----------------------------
+  async query(question: string): Promise<QueryResponse> {
+    const contextDocs = await this.retrieve(question);
+
+    const context = contextDocs.map(({ doc, score }) => {
+      const filename = (doc.metadata as Metadata).filename;
       return {
         pdf: filename,
         score: Number(score.toFixed(4)),
@@ -165,10 +220,57 @@ export class RagService implements OnModuleInit {
       };
     });
 
-    // Risposta finale in formato JSON
     return {
       domanda: question,
       documenti: context,
+    };
+  }
+
+  // -----------------------------
+  // Genera risposta con LLM (RAG completo)
+  // -----------------------------
+  async generate(question: string): Promise<GenerateResponse> {
+    const filteredResults = await this.retrieve(question);
+
+    // Se nessun documento rilevante, rispondi senza LLM
+    if (filteredResults.length === 0) {
+      return {
+        risposta: NO_CONTEXT_RESPONSE,
+        citazioni: [],
+        disclaimer: 'Nessun documento rilevante trovato per questa domanda.',
+      };
+    }
+
+    // Prepara citazioni
+    const citazioni = filteredResults.map(({ doc, score }) => ({
+      filename: (doc.metadata as Metadata).filename,
+      score: Number(score.toFixed(4)),
+      snippet: doc.pageContent.substring(0, 150) + '...',
+    }));
+
+    // Formatta contesto per il prompt
+    const contextDocs = filteredResults.map(({ doc, score }) => ({
+      content: doc.pageContent,
+      filename: (doc.metadata as Metadata).filename,
+      score: score,
+    }));
+
+    const contextText = formatContextForPrompt(contextDocs);
+
+    // Costruisci prompt finale
+    const prompt = RAG_SYSTEM_PROMPT.replace('{context}', contextText).replace(
+      '{question}',
+      question,
+    );
+
+    // Genera risposta con LLM
+    const risposta = await this.llmService.generateResponse(prompt);
+
+    return {
+      risposta,
+      citazioni,
+      disclaimer:
+        'Risposta generata basandosi esclusivamente sui documenti indicizzati.',
     };
   }
 
@@ -177,7 +279,7 @@ export class RagService implements OnModuleInit {
   // -----------------------------
   private async loadVectorStore(): Promise<void> {
     this.vectorStore = await FaissStore.load(this.storePath, this.embeddings);
-    this.logger.debug('Vector store FAISS caricato da disco');
+    this.logger.log('Vector store FAISS caricato da disco');
   }
 
   // -----------------------------
