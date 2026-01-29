@@ -20,6 +20,11 @@ export class LlmService implements OnModuleInit {
       const response = await this.llmClient.models.generateContent({
         model: this.modelName,
         contents: prompt,
+        config: {
+          thinkingConfig: {
+            thinkingBudget: 0, // disabilita il "thinking" per risposte più veloci
+          },
+        },
       });
 
       if (response.text) {
