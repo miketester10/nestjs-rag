@@ -1,6 +1,8 @@
 # NestJS RAG (Retrieval-Augmented Generation)
 
-Un progetto NestJS che implementa un sistema di **Retrieval-Augmented Generation (RAG)** per generare risposte intelligenti basate su documenti indicizzati.
+Un progetto NestJS che implementa un sistema di **Retrieval-Augmented Generation (RAG)** per generare risposte intelligenti basate su documenti indicizzati.  
+***N.B. Questa versione usa llama.cpp per sfruttare GPU AMD con Vulkan***
+
 
 ## Installazione
 
@@ -13,11 +15,17 @@ npm install
 Configura le seguenti variabili nel file `.env`:
 
 ```
-OLLAMA_BASE_URL=http://localhost:11434
-EMBEDDING_MODEL=embeddinggemma:latest
-SIMILARITY_THRESHOLD=0.45
+LLM_API_KEY=
 LLM_MODEL=gemini-3-flash-preview
-GEMINI_API_KEY=your_api_key
+
+# llama.cpp settings per sfruttare GPU AMD con Vulkan
+# Avviare il server con:
+# llama-server -hf Qwen/Qwen3-Embedding-4B-GGUF:Q8_0 --embeddings --pooling mean -c 8192 -b 8192 -ngl 999 --no-mmap -fa on --no-webui --port 8080
+OLLAMA_BASE_URL=http://localhost:8080/v1
+EMBEDDING_MODEL=Qwen/Qwen3-Embedding-4B-GGUF:Q8_0
+
+SIMILARITY_THRESHOLD=0.45
+
 ```
 
 ## Avvio del Progetto

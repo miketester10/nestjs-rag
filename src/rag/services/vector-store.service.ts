@@ -25,7 +25,7 @@ export class VectorStoreService {
     this.embeddings = new OpenAIEmbeddings({
       configuration: {
         baseURL: ollamaBaseUrl,
-        apiKey: 'My API Key', // API Key non è necessaria per Ollama, ma è richiesta dall'interfaccia
+        apiKey: 'My API Key', // API Key non è necessaria per llama.cpp, ma è richiesta dall'interfaccia
       },
     });
 
