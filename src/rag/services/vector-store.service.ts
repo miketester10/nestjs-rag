@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { FaissStore } from '@langchain/community/vectorstores/faiss';
-import { OllamaEmbeddings } from '@langchain/ollama';
+import { OpenAIEmbeddings } from '@langchain/openai';
 import { Document } from 'langchain/document';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -14,17 +14,19 @@ export class VectorStoreService {
   private readonly logger = new Logger(VectorStoreService.name);
 
   private vectorStore: FaissStore | null = null;
-  private embeddings: OllamaEmbeddings;
+  private embeddings: OpenAIEmbeddings;
   private dataDir = path.resolve('data');
   private storePath = path.join(this.dataDir, 'faiss_store');
 
   /**
-   * Inizializza gli embeddings di Ollama
+   * Inizializza gli embeddings di OpenAI e prepara la cartella per il vector store
    */
   initialize(ollamaBaseUrl: string, embeddingModel: string): void {
-    this.embeddings = new OllamaEmbeddings({
-      baseUrl: ollamaBaseUrl,
-      model: embeddingModel,
+    this.embeddings = new OpenAIEmbeddings({
+      configuration: {
+        baseURL: ollamaBaseUrl,
+        apiKey: 'My API Key', // API Key non è necessaria per Ollama, ma è richiesta dall'interfaccia
+      },
     });
 
     // Crea la cartella 'data' se non esiste
@@ -101,7 +103,7 @@ export class VectorStoreService {
   /**
    * Ottiene gli embeddings attuali
    */
-  getEmbeddings(): OllamaEmbeddings {
+  getEmbeddings(): OpenAIEmbeddings {
     return this.embeddings;
   }
 }
