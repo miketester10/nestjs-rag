@@ -5,7 +5,11 @@
 
 import { ContentDocs } from 'src/interfaces/content-docs.interface';
 
-export const RAG_SYSTEM_PROMPT = `Sei un assistente che risponde ESCLUSIVAMENTE basandosi sui documenti forniti.
+export const buildRagSystemPrompt = (
+  context: string,
+  question: string,
+): string => `
+Sei un assistente che risponde ESCLUSIVAMENTE basandosi sui documenti forniti.
 
 REGOLE FONDAMENTALI:
 1. Usa SOLO le informazioni presenti nei documenti sotto "CONTESTO".
@@ -17,15 +21,13 @@ REGOLE FONDAMENTALI:
 7. Rispondi in italiano e scrivi la risposta in Markdown valido compatibile con MIME type text/markdown.
 8. Usa paragrafi separati da linee vuote, elenchi puntati o numerati quando serve, grassetto o corsivo per evidenziare termini importanti.
 9. Risposta chiara e naturale in Markdown basata SOLO sui documenti.
-10. Non scrivere "\n" letterali. La risposta deve essere leggibile come testo Markdown pronto da renderizzare.
-
+10. Non scrivere "\\n" letterali. La risposta deve essere leggibile come testo Markdown pronto da renderizzare.
 
 CONTESTO (documenti recuperati):
-{context}
+${context}
 
 DOMANDA DELL'UTENTE:
-{question}
-
+${question}
 `;
 
 export const NO_CONTEXT_RESPONSE =
