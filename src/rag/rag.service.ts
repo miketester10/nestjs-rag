@@ -4,7 +4,7 @@ import { IngestResponse } from 'src/interfaces/ingest-response.interface';
 import { GenerateResponse } from 'src/interfaces/generate-response.interface';
 import { LlmService } from 'src/llm/llm.service';
 import {
-  RAG_SYSTEM_PROMPT,
+  buildRagSystemPrompt,
   NO_CONTEXT_RESPONSE,
   formatContextForPrompt,
 } from './prompts/rag-prompt';
@@ -119,10 +119,7 @@ export class RagService implements OnModuleInit {
     const contextText = formatContextForPrompt(contextDocs);
 
     // Costruisci prompt finale
-    const prompt = RAG_SYSTEM_PROMPT.replace('{context}', contextText).replace(
-      '{question}',
-      question,
-    );
+    const prompt = buildRagSystemPrompt(contextText, question);
 
     // Genera risposta con LLM
     const risposta = await this.llmService.generateResponse(prompt);
