@@ -3,7 +3,7 @@
 Un progetto NestJS che implementa un sistema di **Retrieval-Augmented Generation (RAG)** per generare risposte intelligenti basate su documenti indicizzati.
 
 > [!NOTE]
-> Questa versione usa [llama.cpp](https://github.com/ggml-org/llama.cpp) con backend **Vulkan** per l’accelerazione su GPU AMD.
+> Questa versione usa [llama.cpp](https://github.com/ggml-org/llama.cpp) con backend **Vulkan** per l’accelerazione hardware su GPU AMD.
 
 ## Installazione
 
