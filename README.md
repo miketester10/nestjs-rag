@@ -2,6 +2,9 @@
 
 Un progetto NestJS che implementa un sistema di **Retrieval-Augmented Generation (RAG)** per generare risposte intelligenti basate su documenti indicizzati.
 
+> [!NOTE]
+> Per l'accelerazione hardware su GPU AMD, visita il branch [`vulkan-gpu`](https://github.com/miketester10/nestjs-rag/tree/vulkan-gpu). Quella versione utilizza **llama.cpp** con backend **Vulkan** invece di Ollama standard.
+
 ## Installazione
 
 ```bash
